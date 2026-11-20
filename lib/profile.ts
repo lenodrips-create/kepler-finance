@@ -1,15 +1,18 @@
 "use client";
 
 import * as React from "react";
+import { isPurchaseDate, type PurchaseDate } from "@/lib/purchase";
 
 export interface Profile {
   name: string;
   holdings: string[]; // ticker symbols
+  /** When each holding was bought (month + year, optional day), keyed by symbol. */
+  purchases: Record<string, PurchaseDate>;
   tracking: string[];
 }
 
 const KEY = "kepler.profile";
-export const EMPTY_PROFILE: Profile = { name: "", holdings: [], tracking: [] };
+export const EMPTY_PROFILE: Profile = { name: "", holdings: [], purchases: {}, tracking: [] };
 
 export function loadProfile(): Profile {
   try {
@@ -18,6 +21,10 @@ export function loadProfile(): Profile {
     return {
       name: typeof p.name === "string" ? p.name : "",
       holdings: Array.isArray(p.holdings) ? p.holdings.filter((s: unknown) => typeof s === "string") : [],
+      purchases:
+        p.purchases && typeof p.purchases === "object"
+          ? Object.fromEntries(Object.entries(p.purchases).filter(([, v]) => isPurchaseDate(v))) as Record<string, PurchaseDate>
+          : {},
       tracking: Array.isArray(p.tracking) ? p.tracking : [],
     };
   } catch {

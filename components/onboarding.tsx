@@ -6,7 +6,9 @@ import { Briefcase, Check, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PurchaseDateFields } from "@/components/purchase-date-fields";
 import { StockSearch } from "@/components/stock-search";
+import { EMPTY_DRAFT, validateDraft, type DraftDate, type PurchaseDate } from "@/lib/purchase";
 import type { Profile } from "@/lib/profile";
 import { POPULAR, formatRevenue, getStocks, topByRevenue, type Stock } from "@/lib/stocks";
 import { cn } from "@/lib/utils";
@@ -114,7 +116,7 @@ const TRACK_OPTIONS: { id: TrackId; title: string; detail: string }[] = [
   { id: "savings", title: "Savings", detail: "Goals, budgets, cash" },
 ];
 
-const STEPS = ["name", "holdings", "tracking"] as const;
+const STEPS = ["name", "holdings", "purchased", "tracking"] as const;
 
 // --------------------------------
 // Shared bits
@@ -168,6 +170,8 @@ export function Onboarding({ onBack, onFinish }: OnboardingProps) {
   const [name, setName] = React.useState("");
   const [holdings, setHoldings] = React.useState<string[]>([]);
   const [tracking, setTracking] = React.useState<TrackId[]>(["stocks"]);
+  const [dates, setDates] = React.useState<Record<string, DraftDate>>({});
+  const [showDateErrors, setShowDateErrors] = React.useState(false);
 
   const pct = Math.round((step / STEPS.length) * 100);
   const current = STEPS[step];
@@ -182,11 +186,30 @@ export function Onboarding({ onBack, onFinish }: OnboardingProps) {
 
   const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
-  const next = () => {
-    if (step < STEPS.length - 1) setStep(step + 1);
-    else onFinish({ name: name.trim(), holdings, tracking });
+  const checked = holdings.map((sym) => ({ sym, ...validateDraft(dates[sym] ?? EMPTY_DRAFT) }));
+  const purchases = Object.fromEntries(
+    checked.filter((c) => c.value).map((c) => [c.sym, c.value as PurchaseDate]),
+  ) as Record<string, PurchaseDate>;
+
+  // The purchase-date step only applies when at least one stock was picked.
+  const go = (to: number) => {
+    if (STEPS[to] === "purchased" && holdings.length === 0) to += to > step ? 1 : -1;
+    setStep(to);
   };
-  const back = () => (step === 0 ? onBack() : setStep(step - 1));
+  const next = () => {
+    if (current === "purchased") {
+      const bad = checked.find((c) => !c.value);
+      if (bad) {
+        setShowDateErrors(true);
+        const e = bad.errors;
+        document.getElementById(`buy-${bad.sym}-${e.month ? "month" : e.day ? "day" : "year"}`)?.focus();
+        return;
+      }
+    }
+    if (step < STEPS.length - 1) go(step + 1);
+    else onFinish({ name: name.trim(), holdings, purchases, tracking });
+  };
+  const back = () => (step === 0 ? onBack() : go(step - 1));
 
   return (
     <motion.section
@@ -350,6 +373,34 @@ export function Onboarding({ onBack, onFinish }: OnboardingProps) {
                     "None yet? Skip ahead. Your home chart will show your own revenue."
                   )}
                 </p>
+              </div>
+            </>
+          )}
+
+          {current === "purchased" && (
+            <>
+              <StepHeading
+                id="step-purchased"
+                pill="Your portfolio"
+                title={holdings.length === 1 ? "When did you buy it?" : "When did you buy them?"}
+                sub="Month and year are enough. Add the day if you know it."
+              />
+              <div className="mt-8 space-y-6">
+                {checked.map(({ sym, errors }) => (
+                  <PurchaseDateFields
+                    key={sym}
+                    idPrefix={`buy-${sym}`}
+                    legend={
+                      <span className="flex min-w-0 items-baseline gap-2">
+                        <span className="font-mono font-semibold">{sym}</span>
+                        <span className="truncate font-normal text-muted-foreground">{known[sym]?.name}</span>
+                      </span>
+                    }
+                    value={dates[sym] ?? EMPTY_DRAFT}
+                    onChange={(d) => setDates((all) => ({ ...all, [sym]: d }))}
+                    errors={showDateErrors ? errors : undefined}
+                  />
+                ))}
               </div>
             </>
           )}

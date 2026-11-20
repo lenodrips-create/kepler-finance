@@ -3,15 +3,17 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Check, Plus } from "lucide-react";
+import { Check, Plus, X } from "lucide-react";
 import { Sparkline, TrendChart, signed } from "@/components/charts";
+import { PurchaseDateFields } from "@/components/purchase-date-fields";
 import { StockSearch } from "@/components/stock-search";
 import { Button } from "@/components/ui/button";
 import { useProfile } from "@/lib/profile";
+import { EMPTY_DRAFT, formatPurchase, toDraft, validateDraft, type DraftDate, type PurchaseDate } from "@/lib/purchase";
 import { MONTHS } from "@/lib/sample-data";
 import { formatRevenue, getLargestByRevenue, getStocks, priceAxis, sampleQuote, sampleSeries, type Stock } from "@/lib/stocks";
 
-function StockRow({ s }: { s: Stock }) {
+function StockRow({ s, bought }: { s: Stock; bought?: PurchaseDate | null }) {
   const q = sampleQuote(s.symbol);
   const pos = ((q.price - q.lo) / (q.hi - q.lo)) * 100;
   return (
@@ -24,6 +26,7 @@ function StockRow({ s }: { s: Stock }) {
       <td className="co hide-sm">
         <span className="line-clamp-1">{s.name}</span>
       </td>
+      {bought !== undefined && <td className="r num">{formatPurchase(bought ?? undefined)}</td>}
       <td className="r num hide-sm">{formatRevenue(s.revenue_usd)}</td>
       <td className="r num">{q.price.toFixed(2)}</td>
       <td className="r num">{signed(q.change)}</td>
@@ -39,7 +42,7 @@ function StockRow({ s }: { s: Stock }) {
   );
 }
 
-function StockTable({ rows, caption }: { rows: Stock[]; caption: string }) {
+function StockTable({ rows, caption, purchases }: { rows: Stock[]; caption: string; purchases?: Record<string, PurchaseDate> }) {
   return (
     <table>
       <caption className="sr-only">{caption}</caption>
@@ -47,6 +50,7 @@ function StockTable({ rows, caption }: { rows: Stock[]; caption: string }) {
         <tr>
           <th>Symbol</th>
           <th className="hide-sm">Company</th>
+          {purchases && <th className="r">Bought</th>}
           <th className="r hide-sm">Revenue</th>
           <th className="r">Price</th>
           <th className="r">Day</th>
@@ -56,7 +60,7 @@ function StockTable({ rows, caption }: { rows: Stock[]; caption: string }) {
       </thead>
       <tbody>
         {rows.map((s) => (
-          <StockRow key={s.symbol} s={s} />
+          <StockRow key={s.symbol} s={s} bought={purchases ? purchases[s.symbol] ?? null : undefined} />
         ))}
       </tbody>
     </table>
@@ -93,10 +97,37 @@ function StocksView() {
   }, [holdingsKey]);
 
   const isHeld = !!detail && !!profile?.holdings.includes(detail.symbol);
-  const toggleHolding = () => {
+  const bought = detail ? profile?.purchases[detail.symbol] : undefined;
+
+  // "Add to my stocks" (or "Edit date") opens the purchase-date form first.
+  const [adding, setAdding] = React.useState(false);
+  const [draft, setDraft] = React.useState<DraftDate>(EMPTY_DRAFT);
+  const [showErrors, setShowErrors] = React.useState(false);
+  React.useEffect(() => setAdding(false), [symbol]);
+  const check = validateDraft(draft);
+
+  const openForm = () => {
+    setDraft(toDraft(bought));
+    setShowErrors(false);
+    setAdding(true);
+  };
+  const save = (e: React.FormEvent) => {
+    e.preventDefault();
     if (!profile || !detail) return;
-    const holdings = isHeld ? profile.holdings.filter((h) => h !== detail.symbol) : [...profile.holdings, detail.symbol];
-    setProfile({ ...profile, holdings });
+    if (!check.value) {
+      setShowErrors(true);
+      const k = check.errors.month ? "month" : check.errors.day ? "day" : "year";
+      document.getElementById(`add-${detail.symbol}-${k}`)?.focus();
+      return;
+    }
+    const holdings = isHeld ? profile.holdings : [...profile.holdings, detail.symbol];
+    setProfile({ ...profile, holdings, purchases: { ...profile.purchases, [detail.symbol]: check.value } });
+    setAdding(false);
+  };
+  const remove = () => {
+    if (!profile || !detail) return;
+    const { [detail.symbol]: _removed, ...rest } = profile.purchases;
+    setProfile({ ...profile, holdings: profile.holdings.filter((h) => h !== detail.symbol), purchases: rest });
   };
 
   return (
@@ -136,17 +167,70 @@ function StocksView() {
                     {detail.revenue_usd ? ` · ${formatRevenue(detail.revenue_usd)} revenue FY${detail.revenue_fy}` : ""}
                   </p>
                 </div>
-                <Button
-                  type="button"
-                  variant={isHeld ? "outline" : "default"}
-                  className="shrink-0 rounded-full"
-                  onClick={toggleHolding}
-                  aria-pressed={isHeld}
-                >
-                  {isHeld ? <Check className="mr-1.5 h-4 w-4" aria-hidden="true" /> : <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />}
-                  {isHeld ? "In your stocks" : "Add to my stocks"}
-                </Button>
+                {isHeld ? (
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-sm">
+                      <Check className="h-4 w-4 text-[#1E6B4F]" aria-hidden="true" />
+                      In your stocks{bought ? ` · bought ${formatPurchase(bought)}` : ""}
+                    </span>
+                    {!adding && (
+                      <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={openForm}>
+                        {bought ? "Edit date" : "Add date"}
+                      </Button>
+                    )}
+                    <Button type="button" variant="ghost" size="sm" className="rounded-full" onClick={remove}>
+                      Remove
+                    </Button>
+                  </div>
+                ) : (
+                  !adding && (
+                    <Button type="button" className="shrink-0 rounded-full" onClick={openForm}>
+                      <Plus className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                      Add to my stocks
+                    </Button>
+                  )
+                )}
               </div>
+
+              {adding && (
+                <form
+                  onSubmit={save}
+                  noValidate
+                  aria-label={`When did you buy ${detail.symbol}?`}
+                  className="mb-8 rounded-2xl border border-[#D9D5CB] bg-[#FBFAF7] p-5 sm:p-6"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-medium">When did you buy {detail.symbol}?</h3>
+                      <p className="mt-1 text-sm text-[#6A6860]">Month and year are enough. Add the day if you know it.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAdding(false)}
+                      aria-label="Cancel"
+                      className="-mr-2 -mt-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[#6A6860] hover:bg-[#EDEAE3] hover:text-[#1A1A17]"
+                    >
+                      <X className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </div>
+                  <PurchaseDateFields
+                    idPrefix={`add-${detail.symbol}`}
+                    legend={<span className="sr-only">Purchase date for {detail.symbol}</span>}
+                    value={draft}
+                    onChange={setDraft}
+                    errors={showErrors ? check.errors : undefined}
+                    className="mt-4 max-w-md"
+                  />
+                  <div className="mt-5 flex gap-2">
+                    <Button type="submit" className="rounded-full">
+                      {isHeld ? "Save date" : "Add to my stocks"}
+                    </Button>
+                    <Button type="button" variant="ghost" className="rounded-full" onClick={() => setAdding(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              )}
               <div className="figures !mb-6" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
                 <div className="fig">
                   <div className="k">Price (sample)</div>
@@ -184,7 +268,7 @@ function StocksView() {
             <h2>Your stocks</h2>
             <span>{held.length}</span>
           </div>
-          <StockTable rows={held} caption="Your stocks" />
+          <StockTable rows={held} caption="Your stocks" purchases={profile?.purchases ?? {}} />
         </div>
       )}
 
