@@ -1,1 +1,6 @@
 node_modules/
+.next/
+out/
+auth/
+*.tsbuildinfo
+next-env.d.ts
