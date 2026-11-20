@@ -38,16 +38,18 @@ interface FormState {
 // Schemas
 // --------------------------------
 
+// TEST MODE: no credentials are required to sign in or sign up.
+// Restore the commented rules when a real auth backend is connected.
 const signInSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  email: z.string(), // .email("Invalid email address")
+  password: z.string(), // .min(8, "Password must be at least 8 characters")
 });
 
 const signUpSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  terms: z.boolean().refine((v) => v, { message: "You must agree to the terms" }),
+  name: z.string(), // .min(2, "Name must be at least 2 characters")
+  email: z.string(), // .email("Invalid email address")
+  password: z.string(), // .min(8, "Password must be at least 8 characters")
+  terms: z.boolean(), // .refine((v) => v, { message: "You must agree to the terms" })
 });
 
 const forgotPasswordSchema = z.object({
@@ -69,7 +71,12 @@ const viewMotion = {
 // Main Auth Component
 // --------------------------------
 
-function Auth({ className, ...props }: React.ComponentProps<"div">) {
+interface AuthProps extends React.ComponentProps<"div"> {
+  /** Called after a successful sign in / sign up. */
+  onAuthenticated?: () => void;
+}
+
+function Auth({ className, onAuthenticated = () => {}, ...props }: AuthProps) {
   const [state, setState] = React.useState<AuthState>({ view: AuthView.SIGN_IN });
 
   const setView = React.useCallback((view: AuthView) => {
@@ -91,12 +98,14 @@ function Auth({ className, ...props }: React.ComponentProps<"div">) {
                 key="sign-in"
                 onForgotPassword={() => setView(AuthView.FORGOT_PASSWORD)}
                 onSignUp={() => setView(AuthView.SIGN_UP)}
+                onAuthenticated={onAuthenticated}
               />
             )}
             {state.view === AuthView.SIGN_UP && (
               <AuthSignUp
                 key="sign-up"
                 onSignIn={() => setView(AuthView.SIGN_IN)}
+                onAuthenticated={onAuthenticated}
               />
             )}
             {state.view === AuthView.FORGOT_PASSWORD && (
@@ -177,9 +186,10 @@ function fieldA11y(id: string, error: unknown) {
 
 interface AuthSocialButtonsProps {
   isLoading: boolean;
+  onClick?: () => void;
 }
 
-function AuthSocialButtons({ isLoading }: AuthSocialButtonsProps) {
+function AuthSocialButtons({ isLoading, onClick }: AuthSocialButtonsProps) {
   return (
     <div data-slot="auth-social-buttons" className="w-full mt-6">
       <Button
@@ -187,6 +197,7 @@ function AuthSocialButtons({ isLoading }: AuthSocialButtonsProps) {
         variant="outline"
         className="w-full h-12 bg-background/50 border-border"
         disabled={isLoading}
+        onClick={onClick}
       >
         <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" aria-hidden="true">
           <path
@@ -271,9 +282,10 @@ PasswordField.displayName = "PasswordField";
 interface AuthSignInProps {
   onForgotPassword: () => void;
   onSignUp: () => void;
+  onAuthenticated: () => void;
 }
 
-function AuthSignIn({ onForgotPassword, onSignUp }: AuthSignInProps) {
+function AuthSignIn({ onForgotPassword, onSignUp, onAuthenticated }: AuthSignInProps) {
   const [formState, setFormState] = React.useState<FormState>({
     isLoading: false,
     error: null,
@@ -288,8 +300,9 @@ function AuthSignIn({ onForgotPassword, onSignUp }: AuthSignInProps) {
   const onSubmit = async (_data: SignInFormValues) => {
     setFormState((prev) => ({ ...prev, isLoading: true, error: null }));
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500)); // Simulate API call
-      setFormState((prev) => ({ ...prev, error: "Invalid email or password" }));
+      await new Promise((resolve) => setTimeout(resolve, 600)); // Simulate API call
+      onAuthenticated();
+      return;
     } catch {
       setFormState((prev) => ({ ...prev, error: "An unexpected error occurred" }));
     } finally {
@@ -302,6 +315,9 @@ function AuthSignIn({ onForgotPassword, onSignUp }: AuthSignInProps) {
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">Welcome back</h1>
         <p className="mt-2 text-sm text-muted-foreground">Sign in to your account</p>
+        <p className="mt-3 inline-block rounded-full border border-border bg-background/70 px-3 py-1 font-mono text-xs text-muted-foreground">
+          Test mode: no email or password needed
+        </p>
       </div>
 
       <AuthError message={formState.error} />
@@ -361,7 +377,7 @@ function AuthSignIn({ onForgotPassword, onSignUp }: AuthSignInProps) {
       </AuthForm>
 
       <AuthSeparator />
-      <AuthSocialButtons isLoading={formState.isLoading} />
+      <AuthSocialButtons isLoading={formState.isLoading} onClick={onAuthenticated} />
 
       <p className="mt-8 text-center text-sm text-muted-foreground">
         No account?{" "}
@@ -385,9 +401,10 @@ function AuthSignIn({ onForgotPassword, onSignUp }: AuthSignInProps) {
 
 interface AuthSignUpProps {
   onSignIn: () => void;
+  onAuthenticated: () => void;
 }
 
-function AuthSignUp({ onSignIn }: AuthSignUpProps) {
+function AuthSignUp({ onSignIn, onAuthenticated }: AuthSignUpProps) {
   const [formState, setFormState] = React.useState<FormState>({
     isLoading: false,
     error: null,
@@ -404,8 +421,9 @@ function AuthSignUp({ onSignIn }: AuthSignUpProps) {
   const onSubmit = async (_data: SignUpFormValues) => {
     setFormState((prev) => ({ ...prev, isLoading: true, error: null }));
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500)); // Simulate API call
-      setFormState((prev) => ({ ...prev, error: "Email already registered" }));
+      await new Promise((resolve) => setTimeout(resolve, 600)); // Simulate API call
+      onAuthenticated();
+      return;
     } catch {
       setFormState((prev) => ({ ...prev, error: "An unexpected error occurred" }));
     } finally {
@@ -513,7 +531,7 @@ function AuthSignUp({ onSignIn }: AuthSignUpProps) {
       </AuthForm>
 
       <AuthSeparator />
-      <AuthSocialButtons isLoading={formState.isLoading} />
+      <AuthSocialButtons isLoading={formState.isLoading} onClick={onAuthenticated} />
 
       <p className="mt-8 text-center text-sm text-muted-foreground">
         Have an account?{" "}
