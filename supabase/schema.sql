@@ -46,7 +46,7 @@ as $$
   order by
     (upper(s.symbol) = upper(trim(q))) desc,
     (s.symbol ilike trim(q) || '%') desc,
-    (s.name ilike trim(q) || '%') desc,
+    (regexp_replace(s.name, '^The\s+', '', 'i') ilike trim(q) || '%') desc,   -- "The Coca-Cola Company" counts as starting with "coca"
     s.is_etf asc,
     s.revenue_usd desc nulls last,
     similarity(s.name, trim(q)) desc,

@@ -3,19 +3,23 @@
 import * as React from "react";
 import { getNews, timeAgo, type NewsItem } from "@/lib/news";
 
-const Placeholder = ({ label }: { label: string }) => (
-  <div className="ph" role="img" aria-label={label}>
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="16" rx="1" />
-      <circle cx="9" cy="10" r="2" />
-      <path d="M21 17l-5-5-9 8" />
-    </svg>
-  </div>
-);
+/** Publisher initials, used when a story has no image (e.g. "The Wall Street Journal" -> "WSJ"). */
+function initials(publisher: string | null) {
+  const words = (publisher ?? "Yahoo Finance").replace(/^the\s+/i, "").replace(/\.(com|net|org)$/i, "").split(/[\s.-]+/).filter(Boolean);
+  return (words.length > 1 ? words.slice(0, 3).map((w) => w[0]) : [words[0]?.slice(0, 2) ?? "YF"]).join("").toUpperCase();
+}
+
+function PublisherTile({ publisher }: { publisher: string | null }) {
+  return (
+    <div className="ph !bg-[#E3EFE8]" aria-hidden="true">
+      <span className="font-mono text-2xl font-semibold tracking-tight text-[#1E6B4F]">{initials(publisher)}</span>
+    </div>
+  );
+}
 
 function NewsImage({ item }: { item: NewsItem }) {
   const [src, setSrc] = React.useState(item.image ?? item.thumbnail);
-  if (!src) return <Placeholder label="No image" />;
+  if (!src) return <PublisherTile publisher={item.publisher} />;
   return (
     <div className="ph overflow-hidden">
       {/* eslint-disable-next-line @next/next/no-img-element -- static export, remote news images */}
@@ -39,6 +43,14 @@ interface NewsListProps {
   title?: string;
 }
 
+/** Newest `limit` stories, preferring ones that have an article image; result stays newest-first. */
+function pickWithImages(items: NewsItem[], limit: number): NewsItem[] {
+  const withImg = items.filter((n) => n.image || n.thumbnail);
+  const chosen = new Set(withImg.slice(0, limit).map((n) => n.uuid));
+  for (const n of items) if (chosen.size < limit) chosen.add(n.uuid);
+  return items.filter((n) => chosen.has(n.uuid));
+}
+
 /** Yahoo Finance headlines in the dashboard's news-card layout. */
 export function NewsList({ symbols, limit = 6, title = "News" }: NewsListProps) {
   const [items, setItems] = React.useState<NewsItem[] | null>(null);
@@ -50,8 +62,9 @@ export function NewsList({ symbols, limit = 6, title = "News" }: NewsListProps) 
     let live = true;
     setItems(null);
     setError(false);
-    getNews(symbols, limit)
-      .then((n) => live && setItems(n))
+    // Ask for a few extra stories so the newest ones with article images can be shown first.
+    getNews(symbols, Math.min(24, limit + 6))
+      .then((n) => live && setItems(pickWithImages(n, limit)))
       .catch(() => live && setError(true));
     const t = setInterval(() => setNow(Date.now()), 60_000);
     return () => {
