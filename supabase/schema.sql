@@ -29,6 +29,9 @@ create index if not exists stocks_name_trgm   on public.stocks using gin (name e
 alter table public.stocks enable row level security;
 drop policy if exists "stocks are publicly readable" on public.stocks;
 create policy "stocks are publicly readable" on public.stocks for select to anon, authenticated using (true);
+-- New Supabase projects don't grant table access to the API roles by default: read-only for the site.
+grant select on public.stocks to anon, authenticated;
+revoke insert, update, delete, truncate, references, trigger on public.stocks from anon, authenticated;
 
 -- Ranked company search: exact ticker > ticker prefix > name prefix > stocks before ETFs > bigger revenue > fuzzy
 create or replace function public.search_stocks(q text, lim int default 20)
@@ -456,3 +459,7 @@ begin
 end;
 $function$;
 grant execute on function public.stock_news(text[], int) to anon, authenticated;
+
+-- The public API roles never need these on the cache tables (functions above run as the owner).
+revoke all on public.price_history, public.price_meta, public.news_items, public.news_queries, public.news_fetches
+  from anon, authenticated;
