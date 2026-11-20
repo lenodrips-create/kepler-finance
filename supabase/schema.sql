@@ -7,6 +7,7 @@
 -- Refresh (run as the database owner, e.g. in the Supabase SQL editor):
 --   select public.refresh_stocks();   -- new listings / renames
 --   select public.refresh_revenue();  -- latest annual revenue
+--   Prices (Yahoo Finance) refresh themselves on demand via stock_quote() / price_on().
 
 create extension if not exists pg_trgm with schema extensions;
 create extension if not exists http with schema extensions;
@@ -154,3 +155,158 @@ begin
 end;
 $$;
 revoke all on function public.refresh_revenue() from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------------------------
+-- Real prices: Yahoo Finance daily closes, fetched on demand by the functions below and cached.
+-- ---------------------------------------------------------------------------------------------
+create table if not exists public.price_history (
+  symbol text not null references public.stocks(symbol) on delete cascade,
+  d      date not null,
+  close  numeric not null,
+  primary key (symbol, d)
+);
+create table if not exists public.price_meta (
+  symbol       text primary key references public.stocks(symbol) on delete cascade,
+  fetched_at   timestamptz not null default now(),
+  history_from date,
+  price        numeric,
+  price_time   timestamptz,
+  ok           boolean not null default true
+);
+-- No policies on purpose: these tables are only reachable through the functions below.
+alter table public.price_history enable row level security;
+alter table public.price_meta enable row level security;
+
+-- Fetch daily closes for one symbol from `since` onward (internal).
+CREATE OR REPLACE FUNCTION public._fetch_prices(sym text, since date)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+declare
+  r extensions.http_response;
+  j jsonb;
+  start_d date := least(since - 7, current_date - 380);   -- always cover the last year for quotes
+begin
+  perform extensions.http_set_curlopt('CURLOPT_TIMEOUT_MS', '6000');
+  -- period1/period2 keep Yahoo on daily bars (range=max silently switches to monthly)
+  r := extensions.http(('GET',
+        format('https://query1.finance.yahoo.com/v8/finance/chart/%s?period1=%s&period2=%s&interval=1d',
+               replace(sym, '.', '-'), extract(epoch from start_d::timestamp)::bigint, extract(epoch from now())::bigint),
+        array[extensions.http_header('User-Agent', 'Mozilla/5.0 (KeplerFinance)')], null, null)::extensions.http_request);
+  if r.status <> 200 then
+    insert into price_meta(symbol, fetched_at, ok) values (sym, now(), false)
+    on conflict (symbol) do update set fetched_at = now(), ok = false;
+    return;
+  end if;
+  j := r.content::jsonb -> 'chart' -> 'result' -> 0;
+  if j is null or j->'meta'->>'dataGranularity' <> '1d' then
+    insert into price_meta(symbol, fetched_at, ok) values (sym, now(), false)
+    on conflict (symbol) do update set fetched_at = now(), ok = false;
+    return;
+  end if;
+  insert into price_history(symbol, d, close)
+  select sym, (to_timestamp((t.v)::bigint) at time zone coalesce(j->'meta'->>'exchangeTimezoneName', 'America/New_York'))::date,
+         round((c.v)::numeric, 4)
+  from jsonb_array_elements_text(j->'timestamp') with ordinality t(v, i)
+  join jsonb_array_elements_text(j->'indicators'->'quote'->0->'close') with ordinality c(v, i) using (i)
+  where c.v is not null
+  on conflict (symbol, d) do update set close = excluded.close;
+
+  insert into price_meta(symbol, fetched_at, history_from, price, price_time, ok)
+  values (sym, now(), start_d, round((j->'meta'->>'regularMarketPrice')::numeric, 4),
+          to_timestamp((j->'meta'->>'regularMarketTime')::bigint), true)
+  on conflict (symbol) do update set fetched_at = excluded.fetched_at,
+    history_from = least(coalesce(price_meta.history_from, excluded.history_from), excluded.history_from),
+    price = excluded.price, price_time = excluded.price_time, ok = true;
+end;
+$function$;
+revoke all on function public._fetch_prices(text, date) from public, anon, authenticated;
+
+-- Refresh one symbol if its cache is stale (6h) or doesn't reach back to `since`. Globally throttled.
+CREATE OR REPLACE FUNCTION public._ensure_prices(sym text, since date)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+declare m price_meta;
+begin
+  if not exists (select 1 from stocks where symbol = sym) then return false; end if;
+  select * into m from price_meta where symbol = sym;
+  if m.symbol is not null and m.fetched_at > now() - interval '6 hours'
+     and (m.history_from is not null and m.history_from <= since or not m.ok) then
+    return m.ok;
+  end if;
+  if (select count(*) from price_meta where fetched_at > now() - interval '1 minute') >= 120 then
+    return m.symbol is not null and m.ok;   -- throttled: serve whatever is cached
+  end if;
+  perform _fetch_prices(sym, least(since, coalesce(m.history_from, since)));
+  return (select ok from price_meta where symbol = sym);
+end;
+$function$;
+revoke all on function public._ensure_prices(text, date) from public, anon, authenticated;
+
+-- Quote for one symbol: price, day change, 52-week range, 30 daily closes, 12 month-end closes.
+CREATE OR REPLACE FUNCTION public.stock_quote(sym text)
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare ok boolean; res json;
+begin
+  ok := _ensure_prices(upper(sym), current_date - 365);
+  if not ok then return null; end if;
+  with h as (select d, close from price_history where symbol = upper(sym) and d > current_date - 380),
+  m as (select price, price_time from price_meta where symbol = upper(sym)),
+  last2 as (select d, close from h order by d desc limit 2),
+  months as (
+    select distinct on (date_trunc('month', d)) date_trunc('month', d) mon, close
+    from h where d >= date_trunc('month', current_date) - interval '11 months'
+    order by date_trunc('month', d), d desc
+  )
+  select json_build_object(
+    'symbol', upper(sym),
+    'price', coalesce((select price from m), (select close from last2 order by d desc limit 1)),
+    'as_of', (select price_time from m),
+    'prev_close', (select close from last2 order by d asc limit 1),
+    'lo52', (select min(close) from h where d > current_date - 365),
+    'hi52', (select max(close) from h where d > current_date - 365),
+    'spark', (select json_agg(close order by d) from (select d, close from h order by d desc limit 30) s),
+    'months', (select json_agg(to_char(mon, 'Mon') order by mon) from months),
+    'monthly', (select json_agg(close order by mon) from months)
+  ) into res;
+  return res;
+end;
+$function$;
+grant execute on function public.stock_quote(text) to anon, authenticated;
+
+-- Closing price on the day you bought (first trading day on/after `on_date`).
+CREATE OR REPLACE FUNCTION public.price_on(sym text, on_date date)
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare ok boolean;
+begin
+  if on_date > current_date then return null; end if;
+  ok := _ensure_prices(upper(sym), on_date);
+  if not ok then return null; end if;
+  return (
+    select json_build_object('symbol', upper(sym), 'date', d, 'close', close)
+    from (
+      (select d, close from price_history where symbol = upper(sym) and d >= on_date order by d asc limit 1)
+      union all
+      (select d, close from price_history where symbol = upper(sym) and d < on_date order by d desc limit 1)
+    ) x order by (d >= on_date) desc limit 1
+  );
+end;
+$function$;
+grant execute on function public.price_on(text, date) to anon, authenticated;
+
+-- First-time price fetches can take a few seconds; give anonymous API calls a little more room.
+alter role anon set statement_timeout = '12s';
+notify pgrst, 'reload config';

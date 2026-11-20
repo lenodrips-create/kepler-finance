@@ -202,7 +202,7 @@ export function Onboarding({ onBack, onFinish }: OnboardingProps) {
       if (bad) {
         setShowDateErrors(true);
         const e = bad.errors;
-        document.getElementById(`buy-${bad.sym}-${e.month ? "month" : e.day ? "day" : "year"}`)?.focus();
+        document.getElementById(`buy-${bad.sym}-${e.month ? "month" : e.day ? "day" : e.year ? "year" : "amount"}`)?.focus();
         return;
       }
     }
@@ -383,7 +383,7 @@ export function Onboarding({ onBack, onFinish }: OnboardingProps) {
                 id="step-purchased"
                 pill="Your portfolio"
                 title={holdings.length === 1 ? "When did you buy it?" : "When did you buy them?"}
-                sub="Month and year are enough. Add the day if you know it."
+                sub="Month and year are enough. Add the day and amount if you know them."
               />
               <div className="mt-8 space-y-6">
                 {checked.map(({ sym, errors }) => (

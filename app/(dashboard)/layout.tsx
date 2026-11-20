@@ -11,8 +11,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <main className="wrap">
         {children}
         <p className="note">
-          Company list and revenue: Nasdaq symbol directory and SEC EDGAR filings (PostgreSQL). Prices, personal figures and
-          headlines are sample data.
+          Companies: Nasdaq symbol directory. Revenue: SEC EDGAR filings. Prices: Yahoo Finance daily closes, delayed and cached
+          up to 6 hours (all stored in PostgreSQL). Net worth, personal revenue and headlines are sample data.
         </p>
       </main>
     </>

@@ -18,7 +18,7 @@ interface PurchaseDateFieldsProps {
 const control =
   "h-11 w-full rounded-md border border-input bg-background px-3 text-base sm:text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 
-/** Month (required) · Day (optional) · Year (required) for one stock purchase. */
+/** Month (required) · Day (optional) · Year (required) · Amount invested (optional) for one stock purchase. */
 export function PurchaseDateFields({ idPrefix, value, onChange, errors = {}, legend, className }: PurchaseDateFieldsProps) {
   // Changing month/year clears a day that no longer exists (e.g. 31 -> February).
   const update = (next: DraftDate) => {
@@ -108,6 +108,37 @@ export function PurchaseDateFields({ idPrefix, value, onChange, errors = {}, leg
           {errors.year && <p id={`${idPrefix}-year-error`}>{errors.year}</p>}
         </div>
       )}
+      <div className="mt-3 space-y-1.5">
+        <label htmlFor={`${idPrefix}-amount`} className="text-xs text-muted-foreground">
+          Amount invested <span aria-hidden="true">(opt.)</span>
+          <span className="sr-only"> (optional, in US dollars)</span>
+        </label>
+        <div className="relative max-w-[220px]">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true">
+            $
+          </span>
+          <input
+            id={`${idPrefix}-amount`}
+            inputMode="decimal"
+            autoComplete="off"
+            placeholder="e.g. 2,500"
+            value={value.amount}
+            onChange={(e) => update({ ...value, amount: e.target.value.replace(/[^\d.,]/g, "").slice(0, 16) })}
+            aria-invalid={!!errors.amount || undefined}
+            aria-describedby={errors.amount ? `${idPrefix}-amount-error` : `${idPrefix}-amount-hint`}
+            className={cn(control, "pl-7 font-mono tabular-nums placeholder:font-sans placeholder:text-muted-foreground", errors.amount && "border-destructive")}
+          />
+        </div>
+        {errors.amount ? (
+          <p id={`${idPrefix}-amount-error`} className="text-xs text-destructive">
+            {errors.amount}
+          </p>
+        ) : (
+          <p id={`${idPrefix}-amount-hint`} className="text-xs text-muted-foreground">
+            Lets us show your gain in dollars, not just %.
+          </p>
+        )}
+      </div>
     </fieldset>
   );
 }

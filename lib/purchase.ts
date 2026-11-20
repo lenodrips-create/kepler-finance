@@ -3,6 +3,8 @@ export interface PurchaseDate {
   year: number;
   month: number; // 1-12
   day?: number;
+  /** Dollars invested (optional). */
+  amount?: number;
 }
 
 /** Raw form values (strings straight from the inputs). */
@@ -10,15 +12,17 @@ export interface DraftDate {
   year: string;
   month: string;
   day: string;
+  amount: string;
 }
 
 export interface DateErrors {
   month?: string;
   day?: string;
   year?: string;
+  amount?: string;
 }
 
-export const EMPTY_DRAFT: DraftDate = { year: "", month: "", day: "" };
+export const EMPTY_DRAFT: DraftDate = { year: "", month: "", day: "", amount: "" };
 export const MIN_YEAR = 1900;
 
 export const MONTH_NAMES = [
@@ -29,7 +33,9 @@ export const MONTH_NAMES = [
 export const daysInMonth = (year: number, month: number) => new Date(year || 2000, month, 0).getDate();
 
 export function toDraft(p?: PurchaseDate): DraftDate {
-  return p ? { year: String(p.year), month: String(p.month), day: p.day ? String(p.day) : "" } : EMPTY_DRAFT;
+  return p
+    ? { year: String(p.year), month: String(p.month), day: p.day ? String(p.day) : "", amount: p.amount ? String(p.amount) : "" }
+    : EMPTY_DRAFT;
 }
 
 /** Validates a draft; returns the parsed date when there are no errors. */
@@ -53,8 +59,16 @@ export function validateDraft(d: DraftDate, now = new Date()): { value?: Purchas
     }
   }
 
-  const ok = !errors.month && !errors.year && !errors.day;
-  return { errors, value: ok ? { year, month, ...(day ? { day } : {}) } : undefined };
+  const amountText = d.amount.replace(/[$,\s]/g, "");
+  const amount = amountText ? Number(amountText) : undefined;
+  if (amountText && (!Number.isFinite(amount) || amount! <= 0)) errors.amount = "Enter a dollar amount, e.g. 2500";
+  else if (amount !== undefined && amount > 1e10) errors.amount = "That amount looks too large";
+
+  const ok = !errors.month && !errors.year && !errors.day && !errors.amount;
+  return {
+    errors,
+    value: ok ? { year, month, ...(day ? { day } : {}), ...(amount ? { amount: Math.round(amount * 100) / 100 } : {}) } : undefined,
+  };
 }
 
 export function formatPurchase(p?: PurchaseDate): string {
@@ -66,5 +80,10 @@ export function formatPurchase(p?: PurchaseDate): string {
 export function isPurchaseDate(v: unknown): v is PurchaseDate {
   if (!v || typeof v !== "object") return false;
   const p = v as Record<string, unknown>;
-  return Number.isInteger(p.year) && Number.isInteger(p.month) && (p.day === undefined || Number.isInteger(p.day));
+  return (
+    Number.isInteger(p.year) &&
+    Number.isInteger(p.month) &&
+    (p.day === undefined || Number.isInteger(p.day)) &&
+    (p.amount === undefined || (typeof p.amount === "number" && p.amount > 0))
+  );
 }

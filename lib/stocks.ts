@@ -51,54 +51,6 @@ export function formatRevenue(usd: number | string | null): string {
   return `$${Math.round(v).toLocaleString("en-US")}`;
 }
 
-// ---------- Sample market data ----------
-// No live price feed is connected; prices are deterministic samples seeded by ticker.
-
-function rng(seed: string) {
-  let h = 2166136261;
-  for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
-  return () => {
-    h = Math.imul(h ^ (h >>> 15), 2246822507);
-    h = Math.imul(h ^ (h >>> 13), 3266489909);
-    return ((h ^= h >>> 16) >>> 0) / 4294967296;
-  };
-}
-
-export interface Quote {
-  price: number;
-  change: number; // % today
-  lo: number; // 52-week low
-  hi: number; // 52-week high
-}
-
-export function sampleQuote(symbol: string): Quote {
-  const r = rng(symbol);
-  const price = Math.round((8 + r() ** 2 * 600) * 100) / 100;
-  const change = Math.round((r() - 0.45) * 50) / 10;
-  const lo = Math.round(price * (0.6 + r() * 0.3) * 100) / 100;
-  const hi = Math.round(price * (1.02 + r() * 0.2) * 100) / 100;
-  return { price, change, lo, hi };
-}
-
-/** n points walking inside the 52-week range, ending at today's price. */
-export function sampleSeries(symbol: string, n: number): number[] {
-  const { price, lo, hi } = sampleQuote(symbol);
-  const r = rng(symbol + n);
-  const out: number[] = [];
-  let v = lo + (hi - lo) * (0.2 + r() * 0.4);
-  for (let i = 0; i < n; i++) {
-    v += (r() - 0.47) * (hi - lo) * 0.18;
-    v = Math.min(hi, Math.max(lo, v));
-    out.push(v);
-  }
-  // Ease the walk onto today's price so the line ends there without a jump.
-  const gap = price - out[n - 1];
-  return out.map((x, i) => {
-    const y = x + gap * (n > 1 ? i / (n - 1) : 1);
-    return Math.round(Math.min(hi, Math.max(lo, y)) * 100) / 100;
-  });
-}
-
 /** Price axis label with enough precision for cheap stocks. */
 export const priceAxis = (v: number) => "$" + (v < 20 ? v.toFixed(2) : v < 200 ? v.toFixed(1).replace(/\.0$/, "") : Math.round(v));
 
