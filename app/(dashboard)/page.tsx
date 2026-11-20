@@ -3,10 +3,11 @@
 import * as React from "react";
 import Link from "next/link";
 import { TrendChart, Sparkline, signed } from "@/components/charts";
+import { NewsList } from "@/components/news-list";
 import { useProfile } from "@/lib/profile";
 import { dayChange, signedUsd, usd, usePositions, useQuotes } from "@/lib/prices";
 import { formatPurchase } from "@/lib/purchase";
-import { ACCOUNTS, MONTHS, NEWS, REVENUE, money } from "@/lib/sample-data";
+import { ACCOUNTS, MONTHS, REVENUE, money } from "@/lib/sample-data";
 import { POPULAR, formatRevenue, getStocks, priceAxis, topByRevenue, type Stock } from "@/lib/stocks";
 
 const Loading = ({ w = "w-12" }: { w?: string }) => (
@@ -134,30 +135,7 @@ export default function HomePage() {
             </>
           )}
 
-          <div className="news">
-            <div className="sec-h">
-              <h2>News</h2>
-              <span>today</span>
-            </div>
-            <ul>
-              {NEWS.map((n) => (
-                <li key={n.title}>
-                  <a href="#">
-                    <div className="ph" role="img" aria-label={`${n.cat} image placeholder`}>
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <rect x="3" y="4" width="18" height="16" rx="1" />
-                        <circle cx="9" cy="10" r="2" />
-                        <path d="M21 17l-5-5-9 8" />
-                      </svg>
-                    </div>
-                    <div className="cat">{n.cat}</div>
-                    <h3>{n.title}</h3>
-                    <time>{n.time}</time>
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
+          <NewsList symbols={holdings} limit={6} title={holdings.length ? "News on your stocks" : "News"} />
         </div>
 
         <div>

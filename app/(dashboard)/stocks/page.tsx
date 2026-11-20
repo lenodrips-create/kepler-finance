@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Check, Plus, X } from "lucide-react";
 import { Sparkline, TrendChart, signed } from "@/components/charts";
+import { NewsList } from "@/components/news-list";
 import { PurchaseDateFields } from "@/components/purchase-date-fields";
 import { StockSearch } from "@/components/stock-search";
 import { Button } from "@/components/ui/button";
@@ -362,6 +363,7 @@ function StocksView() {
               ) : (
                 dq === undefined && <div className="h-[280px] animate-pulse rounded bg-[#EDEAE3]" aria-label="Loading chart" />
               )}
+              <NewsList symbols={[detail.symbol]} limit={3} title={`News about ${detail.symbol}`} />
             </div>
           )}
         </div>
