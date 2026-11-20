@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revenue · Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="revenue">
+
+<nav aria-label="Main">
+  <div class="wrap bar">
+    <a class="profile" href="#" aria-label="Profile" title="Profile">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.75"/><path d="M4.5 20c1.2-3.6 4.1-5.5 7.5-5.5s6.3 1.9 7.5 5.5"/></svg>
+    </a>
+    <ul>
+      <li><a href="index.html" data-page="home">Home</a></li>
+      <li><a href="stocks.html" data-page="stocks">Stocks</a></li>
+      <li><a href="investments.html" data-page="investments">Investments</a></li>
+      <li><a href="revenue.html" data-page="revenue">Revenue</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="wrap">
+  <header class="mast">
+    <h1 id="greeting">Hello, Lennon</h1>
+    <div class="meta"><div id="today"></div><div>Markets <b id="mkt">closed</b></div></div>
+  </header>
+</div>
+
+<main class="wrap">
+  <!-- REVENUE -->
+  <section aria-label="Revenue">
+    <h2 class="page-h">Revenue</h2>
+    <p class="page-sub">Trailing twelve months.</p>
+    <div class="figures" style="grid-template-columns:repeat(3,1fr)">
+      <div class="fig"><div class="k">Trailing 12 months</div><div class="v" id="ytd"></div></div>
+      <div class="fig"><div class="k">Best month</div><div class="v" id="best"></div></div>
+      <div class="fig"><div class="k">Monthly average</div><div class="v" id="avg"></div></div>
+    </div>
+    <div class="cols">
+      <div>
+        <div class="sec-h"><h2>By month</h2><span>USD</span></div>
+        <div class="chart" id="revChart"></div>
+      </div>
+      <div>
+        <div class="sec-h"><h2>Month over month</h2><span></span></div>
+        <table><tbody id="revTable"></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <p class="note">Sample data and headlines. Edit the arrays at the top of the script.</p>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

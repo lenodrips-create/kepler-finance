@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Investments · Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-page="investments">
+
+<nav aria-label="Main">
+  <div class="wrap bar">
+    <a class="profile" href="#" aria-label="Profile" title="Profile">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.75"/><path d="M4.5 20c1.2-3.6 4.1-5.5 7.5-5.5s6.3 1.9 7.5 5.5"/></svg>
+    </a>
+    <ul>
+      <li><a href="index.html" data-page="home">Home</a></li>
+      <li><a href="stocks.html" data-page="stocks">Stocks</a></li>
+      <li><a href="investments.html" data-page="investments">Investments</a></li>
+      <li><a href="revenue.html" data-page="revenue">Revenue</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="wrap">
+  <header class="mast">
+    <h1 id="greeting">Hello, Lennon</h1>
+    <div class="meta"><div id="today"></div><div>Markets <b id="mkt">closed</b></div></div>
+  </header>
+</div>
+
+<main class="wrap">
+  <!-- INVESTMENTS -->
+  <section aria-label="Investments">
+    <h2 class="page-h">Investments</h2>
+    <p class="page-sub">How the portfolio is split, and where it's held.</p>
+    <div class="cols">
+      <div>
+        <div class="sec-h"><h2>Allocation</h2><span id="allocTotal"></span></div>
+        <div class="stack" id="allocBar" role="img" aria-label="Allocation bar"></div>
+        <table><tbody id="allocTable"></tbody></table>
+      </div>
+      <div>
+        <div class="sec-h"><h2>Accounts</h2><span>3</span></div>
+        <table><tbody id="accounts"></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <p class="note">Sample data and headlines. Edit the arrays at the top of the script.</p>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>
