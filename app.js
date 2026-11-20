@@ -1,14 +1,26 @@
   // ---------- Settings & data ----------
-  const NAME = "Lennon";
+  // Profile saved by the login/onboarding flow (login/). Falls back to defaults.
+  let profile = {};
+  try { profile = JSON.parse(localStorage.getItem("kepler.profile")) || {}; } catch (e) { profile = {}; }
+  const NAME = (typeof profile.name === "string" && profile.name.trim()) || "Lennon";
+  const HOLDINGS = Array.isArray(profile.holdings) ? profile.holdings : [];
   const months  = ["Dec","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov"];
   const revenue = [7200,7900,8100,8800,9300,9100,10200,10900,11400,11800,11880,12840];
+  // Real companies (as listed in Apple's Stocks app). rev = annual revenue in $B for fiscal year fy.
+  // Prices are sample data. Keep tickers in sync with auth/src/data/stocks.ts.
   const stocks = [
-    {t:"AMZN", n:"Amazon",    p:214.05, c: 2.1, lo:151.6, hi:233.0},
-    {t:"AAPL", n:"Apple",     p:231.40, c: 1.2, lo:164.1, hi:237.5},
-    {t:"MSFT", n:"Microsoft", p:468.15, c: 0.8, lo:385.6, hi:480.9},
-    {t:"GOOGL",n:"Alphabet",  p:187.22, c: 0.4, lo:130.7, hi:191.8},
-    {t:"TSLA", n:"Tesla",     p:331.88, c:-0.7, lo:182.0, hi:358.6},
-    {t:"NVDA", n:"NVIDIA",    p:142.70, c:-1.9, lo: 86.6, hi:152.9},
+    {t:"AMZN", n:"Amazon",             p:214.05, c: 2.1, lo:151.6, hi:233.0, rev:638.0, fy:"FY2024"},
+    {t:"AAPL", n:"Apple",              p:231.40, c: 1.2, lo:164.1, hi:237.5, rev:391.0, fy:"FY2024"},
+    {t:"MSFT", n:"Microsoft",          p:468.15, c: 0.8, lo:385.6, hi:480.9, rev:245.1, fy:"FY2024"},
+    {t:"GOOGL",n:"Alphabet",           p:187.22, c: 0.4, lo:130.7, hi:191.8, rev:350.0, fy:"FY2024"},
+    {t:"TSLA", n:"Tesla",              p:331.88, c:-0.7, lo:182.0, hi:358.6, rev: 97.7, fy:"FY2024"},
+    {t:"NVDA", n:"NVIDIA",             p:142.70, c:-1.9, lo: 86.6, hi:152.9, rev:130.5, fy:"FY2025"},
+    {t:"META", n:"Meta Platforms",     p:589.30, c: 0.6, lo:414.5, hi:638.4, rev:164.5, fy:"FY2024"},
+    {t:"NFLX", n:"Netflix",            p:112.40, c: 1.4, lo: 82.1, hi:134.1, rev: 39.0, fy:"FY2024"},
+    {t:"WMT",  n:"Walmart",            p: 98.10, c: 0.3, lo: 59.4, hi:105.3, rev:681.0, fy:"FY2025"},
+    {t:"BRK.B",n:"Berkshire Hathaway", p:478.20, c:-0.2, lo:406.1, hi:539.0, rev:371.4, fy:"FY2024"},
+    {t:"DIS",  n:"Walt Disney",        p:112.60, c:-0.9, lo: 80.1, hi:124.7, rev: 91.4, fy:"FY2024"},
+    {t:"KO",   n:"Coca-Cola",          p: 68.90, c: 0.1, lo: 60.6, hi: 74.4, rev: 47.1, fy:"FY2024"},
   ];
   const news = [
     {cat:"Stocks",      title:"Tech shares edge higher ahead of earnings week",        time:"2h ago"},
@@ -40,17 +52,19 @@
     return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
   }
 
-  function lineChart(el, vals, labels, h=260){
+  // opts: {fmt, axis, lo, hi, label}; defaults suit the revenue chart
+  function lineChart(el, vals, labels, h=260, opts={}){
     const w=Math.max(340, el.clientWidth||720), L=40, R=8, T=12, B=26;
-    const lo = Math.floor(Math.min(...vals)*.9/1000)*1000, hi = Math.ceil(Math.max(...vals)*1.05/1000)*1000;
+    const fmt = opts.fmt || money, axis = opts.axis || (v => (v/1000).toFixed(0)+"k");
+    const lo = opts.lo ?? Math.floor(Math.min(...vals)*.9/1000)*1000, hi = opts.hi ?? Math.ceil(Math.max(...vals)*1.05/1000)*1000;
     const X = i => L + i*(w-L-R)/(vals.length-1);
     const Y = v => T + (1-(v-lo)/(hi-lo))*(h-T-B);
-    let s = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="Monthly revenue, ${labels[0]} to ${labels.at(-1)}">`;
+    let s = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${opts.label || "Monthly revenue"}, ${labels[0]} to ${labels.at(-1)}">`;
     const steps = 4, every = w<520 ? 2 : 1;
     for(let i=0;i<=steps;i++){
       const v = lo + (hi-lo)*i/steps, y=Y(v);
       s += `<line x1="${L}" x2="${w-R}" y1="${y}" y2="${y}" stroke="${css('--rule-2')}"/>`;
-      s += `<text class="axis" x="${L-8}" y="${y+4}" text-anchor="end">${(v/1000).toFixed(0)}k</text>`;
+      s += `<text class="axis" x="${L-8}" y="${y+4}" text-anchor="end">${axis(v)}</text>`;
     }
     labels.forEach((m,i)=>{ if(i%every && i!==labels.length-1) return; s += `<text class="axis" x="${X(i)}" y="${h-6}" text-anchor="middle">${m}</text>`; });
     const pts = vals.map((v,i)=>`${X(i)},${Y(v)}`).join(" ");
@@ -67,7 +81,7 @@
       dot.setAttribute("cx",X(i)); dot.setAttribute("cy",Y(vals[i]));
       xh.setAttribute("x1",X(i)); xh.setAttribute("x2",X(i));
       const prev = i ? (vals[i]-vals[i-1])/vals[i-1]*100 : null;
-      out.innerHTML = `${labels[i]} &nbsp;<b>${money(vals[i])}</b>` + (prev!==null ? ` &nbsp;${signed(prev)}` : "");
+      out.innerHTML = `${labels[i]} &nbsp;<b>${fmt(vals[i])}</b>` + (prev!==null ? ` &nbsp;${signed(prev)}` : "");
     };
     const last = vals.length-1;
     svg.addEventListener("pointermove", e=>{
@@ -90,8 +104,35 @@
   const total = accounts.reduce((a,x)=>a+x[2],0);
   if($("netWorth")) $("netWorth").textContent = money(total);
 
+  // Home chart: the user's holding with the highest annual revenue (from onboarding), else own revenue.
+  const held = stocks.filter(s => HOLDINGS.includes(s.t));
+  const topStock = held.slice().sort((a,b) => b.rev - a.rev)[0];
+  let topPrices = null, topOpts = null;
+  if (topStock) {
+    const s30 = series(stocks.indexOf(topStock)+7, topStock.c);
+    const raw = months.map((_, i) => s30[Math.round(i*(s30.length-1)/(months.length-1))]);
+    const mn = Math.min(...raw), mx = Math.max(...raw);
+    topPrices = raw.map(v => topStock.lo + (v-mn)/(mx-mn||1)*(topStock.hi-topStock.lo));
+    topPrices[topPrices.length-1] = topStock.p;
+    const step = Math.pow(10, Math.floor(Math.log10((topStock.hi-topStock.lo)/2)));
+    topOpts = {
+      fmt: v => "$" + v.toFixed(2),
+      axis: v => "$" + Math.round(v),
+      lo: Math.floor(topStock.lo*.95/step)*step, hi: Math.ceil(topStock.hi*1.03/step)*step,
+      label: `${topStock.t} monthly share price`,
+    };
+    if ($("homeChartTitle")) {
+      $("homeChartTitle").textContent = `${topStock.t} · ${topStock.n}`;
+      $("homeChartSub").textContent = `top holding by revenue · $${topStock.rev.toFixed(1)}B ${topStock.fy}`;
+    }
+  }
+  if ($("positions") && held.length) {
+    $("positions").textContent = held.length;
+    $("positionsSub").textContent = held.length === 1 ? "1 stock" : `${held.length} stocks`;
+  }
+
   const drawCharts = () => {
-    if($("homeChart")) lineChart($("homeChart"), revenue, months);
+    if($("homeChart")) topStock ? lineChart($("homeChart"), topPrices, months, 260, topOpts) : lineChart($("homeChart"), revenue, months);
     if($("revChart"))  lineChart($("revChart"), revenue, months, 300);
   };
   drawCharts();
@@ -110,7 +151,9 @@
   }
   const withSeries = stocks.map((s,i)=>({...s, sp: series(i+3, s.c)}));
   if($("homeWatch")){
-  $("homeWatch").innerHTML = withSeries.slice(0,5).map(s=>`
+  // Holdings first, then the rest of the watchlist
+  const watch = [...withSeries.filter(s => HOLDINGS.includes(s.t)), ...withSeries.filter(s => !HOLDINGS.includes(s.t))];
+  $("homeWatch").innerHTML = watch.slice(0,5).map(s=>`
     <tr><td><span class="tick">${s.t}</span></td>
         <td class="r">${spark(s.sp,70,20)}</td>
         <td class="r num">${s.p.toFixed(2)}</td>

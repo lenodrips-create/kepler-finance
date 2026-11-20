@@ -3,6 +3,7 @@ import { AnimatePresence, MotionConfig } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { Auth } from "@/components/ui/auth-form-1";
 import { Onboarding } from "@/components/onboarding";
+import { PROFILE_KEY } from "@/data/stocks";
 
 const background = `${import.meta.env.BASE_URL}background.png`;
 const DASHBOARD = "../index.html";
@@ -40,9 +41,9 @@ export default function App() {
               <Onboarding
                 key="onboarding"
                 onBack={() => setScreen("auth")}
-                onContinue={(picks) => {
+                onFinish={(profile) => {
                   try {
-                    localStorage.setItem("kepler.tracking", JSON.stringify(picks));
+                    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
                   } catch {
                     /* storage unavailable: preferences just aren't remembered */
                   }
