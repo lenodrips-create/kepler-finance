@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Palette mirrors the Kepler Finance dashboard (paper / ink / green). */
+@layer base {
+  :root {
+    --background: 43 23% 95%;        /* #F5F3EE paper */
+    --foreground: 60 6% 10%;         /* #1A1A17 ink */
+    --card: 43 33% 98%;
+    --card-foreground: 60 6% 10%;
+    --primary: 60 6% 10%;            /* ink buttons */
+    --primary-foreground: 43 23% 95%;
+    --secondary: 43 18% 90%;
+    --secondary-foreground: 60 6% 10%;
+    --muted: 43 18% 90%;
+    --muted-foreground: 48 4% 36%;   /* darker than dashboard muted for 4.5:1 on paper */
+    --accent: 43 18% 90%;
+    --accent-foreground: 60 6% 10%;
+    --destructive: 6 60% 41%;        /* #A8362A */
+    --destructive-foreground: 0 0% 100%;
+    --border: 43 16% 82%;            /* #D9D5CB */
+    --input: 43 12% 74%;
+    --ring: 158 56% 27%;             /* #1E6B4F */
+    --radius: 0.5rem;
+  }
+  * { @apply border-border; }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
